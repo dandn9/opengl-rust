@@ -69,7 +69,7 @@ fn main() {
     // let vbo: *mut u32 = std::ptr::null();
 
     // Create shaders
-    unsafe {
+    let (program, vao) = unsafe {
         let mut info_log: Vec<u8> = Vec::with_capacity(512);
         info_log.set_len(512 - 1); // set the last byte to null char
 
@@ -189,10 +189,13 @@ fn main() {
         gl::EnableVertexAttribArray(0);
 
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-        // Render loop
-        while !window.should_close() {
-            // Input
-            process_input(&mut window);
+
+        (program, vao)
+    };
+    while !window.should_close() {
+        // Input
+        process_input(&mut window);
+        unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
@@ -200,10 +203,10 @@ fn main() {
             gl::UseProgram(program);
             gl::BindVertexArray(vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
-
-            // Check and call events and swap the buffers
-            glfw.poll_events();
-            window.swap_buffers();
         }
+
+        // Check and call events and swap the buffers
+        glfw.poll_events();
+        window.swap_buffers();
     }
 }
