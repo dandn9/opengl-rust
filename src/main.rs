@@ -55,7 +55,7 @@ fn main() {
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
         glfw::OpenGlProfileHint::Core,
     ));
-    let (mut window, receiver) = glfw
+    let (mut window, _) = glfw
         .create_window(800, 600, "LearnOpenGL", glfw::WindowMode::Windowed)
         .expect("Failed to create Glfw window");
 
