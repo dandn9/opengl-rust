@@ -159,17 +159,29 @@ fn main() {
         gl::DeleteShader(vertex_shader);
         gl::DeleteShader(fragment_shader);
 
-        let mut vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
-        // Bind data
-        let mut vao: GLuint = 0;
-        let mut vbo: GLuint = 0;
+        #[rustfmt::skip]
+        let mut vertices: [f32; 12] = 
+                [   0.5, 0.5, 0.0, 
+                    0.5, -0.5, 0.0,
+                    -0.5, -0.5, 0.0,
+                    -0.5, 0.5, 0.0
+                ];
+        #[rustfmt::skip]
+        let mut indices: [u32; 6] = [
+            0, 1, 3, // First triangle
+            1, 2, 3
+        ];
+        // ebo = ElementBufferObject, vao = VertexAttributeObject, vbo = VertexBufferObject
+        let (mut ebo, mut vao, mut vbo): (GLuint, GLuint, GLuint) = (0, 0, 0);
+
         // Create vao
         gl::GenVertexArrays(1, &mut vao);
         gl::GenBuffers(1, &mut vbo);
+        gl::GenBuffers(1, &mut ebo);
 
         gl::BindVertexArray(vao);
-        // Create vbo buffer
 
+        // Copy vertex data to the buffer
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
         gl::BufferData(
             gl::ARRAY_BUFFER,
@@ -178,6 +190,11 @@ fn main() {
             gl::STATIC_DRAW,
         );
 
+        // Copy indices data to the buffer
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+        gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, std::mem::size_of_val(&indices) as isize, indices.as_mut_ptr() as *const c_void, gl::STATIC_DRAW );
+
+        // And create a pointer with size
         gl::VertexAttribPointer(
             0,
             3,
@@ -188,7 +205,16 @@ fn main() {
         );
         gl::EnableVertexAttribArray(0);
 
+        // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+
+        gl::BindVertexArray(0);
+
+        // Wireframe mode
+        gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+
+
+
 
         (program, vao)
     };
@@ -202,7 +228,7 @@ fn main() {
             // Rendering code
             gl::UseProgram(program);
             gl::BindVertexArray(vao);
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null_mut());
         }
 
         // Check and call events and swap the buffers
