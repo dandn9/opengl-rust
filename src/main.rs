@@ -55,7 +55,7 @@ fn main() {
 
     // Create shaders
     let (shader, vao) = unsafe {
-        let our_shader = Shader::new("src/shaders/vertex.glsl", "src/shaders/fragment.glsl");
+        let shader = Shader::new("src/shaders/vertex.glsl", "src/shaders/fragment.glsl");
 
         #[rustfmt::skip]
         let mut vertices: Vec<f32> = vec![
@@ -110,7 +110,7 @@ fn main() {
         // // Wireframe mode
         // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
 
-        (our_shader, vao)
+        (shader, vao)
     };
     while !window.should_close() {
         // Input
@@ -121,6 +121,7 @@ fn main() {
 
             // Rendering code
             shader.use_shader();
+            shader.set_float("offset", 0.5);
 
             gl::BindVertexArray(vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
