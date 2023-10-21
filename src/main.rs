@@ -69,7 +69,7 @@ fn main() {
     // let vbo: *mut u32 = std::ptr::null();
 
     // Create shaders
-    let (program, vao) = unsafe {
+    let (program, vao1, vao2) = unsafe {
         let mut info_log: Vec<u8> = Vec::with_capacity(512);
         info_log.set_len(512 - 1); // set the last byte to null char
 
@@ -161,12 +161,12 @@ fn main() {
 
         #[rustfmt::skip]
         let mut vertices: [f32; 18] = 
-                [   0.0, 0.0, 0.0,
-                    0.0, -0.5, 0.0,
-                    -0.5, 0.0, 0.0,
+                [   -1.0, 0.0, 0.0,
+                    -0.5, 0.5, 0.0,
                     0.0, 0.0, 0.0,
-                    0.5, 0.0, 0.0,
-                    0.0, -0.5, 0.0
+                    0.0, 0.0, 0.0,
+                    0.5, 0.5, 0.0,
+                    1.0, 0.0, 0.0,
 
 
                 ];
@@ -176,16 +176,18 @@ fn main() {
             1, 2, 3
         ];
         // ebo = ElementBufferObject, vao = VertexAttributeObject, vbo = VertexBufferObject
-        let (mut ebo, mut vao, mut vbo): (GLuint, GLuint, GLuint) = (0, 0, 0);
+        let (mut vao1, mut vbo1, mut vao2, mut vbo2 ): (GLuint, GLuint, GLuint, GLuint) = (0, 0, 0, 0);
 
         // Create vao
-        gl::GenVertexArrays(1, &mut vao);
-        gl::GenBuffers(1, &mut vbo);
+        gl::GenVertexArrays(1, &mut vao1);
+        gl::GenBuffers(1, &mut vbo1);
+        gl::GenVertexArrays(1, &mut vao2);
+        gl::GenBuffers(1, &mut vbo2);
 
-        gl::BindVertexArray(vao);
+        gl::BindVertexArray(vao1);
 
         // Copy vertex data to the buffer
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo1);
         gl::BufferData(
             gl::ARRAY_BUFFER,
             std::mem::size_of_val(&vertices) as isize,
@@ -203,12 +205,30 @@ fn main() {
             3 * std::mem::size_of::<f32>() as GLsizei,
             ptr::null(),
         );
+
         gl::EnableVertexAttribArray(0);
+
+
 
         // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 
         gl::BindVertexArray(0);
+        gl::BindVertexArray(vao2);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo2);
+        gl::BufferData(gl::ARRAY_BUFFER, (std::mem::size_of_val(&vertices)) as isize, vertices.as_mut_ptr() as *const c_void, gl::STATIC_DRAW);
+        gl::VertexAttribPointer(
+            0,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            3 * std::mem::size_of::<f32>() as GLsizei,
+            vertices.as_mut_ptr().add(3) as *const c_void ,
+        );
+        gl::EnableVertexAttribArray(0);
+
+        gl::BindVertexArray(0);
+
 
         // // Wireframe mode
         // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
@@ -216,7 +236,7 @@ fn main() {
 
 
 
-        (program, vao)
+        (program, vao1, vao2)
     };
     while !window.should_close() {
         // Input
@@ -227,8 +247,10 @@ fn main() {
 
             // Rendering code
             gl::UseProgram(program);
-            gl::BindVertexArray(vao);
+            gl::BindVertexArray(vao1);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            gl::BindVertexArray(vao2);
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
             // gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null_mut());
         }
 
