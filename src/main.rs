@@ -160,15 +160,17 @@ fn main() {
         gl::DeleteShader(fragment_shader);
 
         #[rustfmt::skip]
-        let mut vertices: [f32; 18] = 
+        let mut vertices1: [f32; 9] = 
                 [   -1.0, 0.0, 0.0,
                     -0.5, 0.5, 0.0,
                     0.0, 0.0, 0.0,
+                ];
+        #[rustfmt::skip]
+        let mut vertices2: [f32; 9] = 
+                [   
                     0.0, 0.0, 0.0,
                     0.5, 0.5, 0.0,
                     1.0, 0.0, 0.0,
-
-
                 ];
         #[rustfmt::skip]
         let mut indices: [u32; 6] = [
@@ -190,8 +192,8 @@ fn main() {
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo1);
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            std::mem::size_of_val(&vertices) as isize,
-            vertices.as_mut_ptr() as *const c_void,
+            std::mem::size_of_val(&vertices1) as isize,
+            vertices1.as_mut_ptr() as *const c_void,
             gl::STATIC_DRAW,
         );
 
@@ -213,17 +215,16 @@ fn main() {
         // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 
-        gl::BindVertexArray(0);
         gl::BindVertexArray(vao2);
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo2);
-        gl::BufferData(gl::ARRAY_BUFFER, (std::mem::size_of_val(&vertices)) as isize, vertices.as_mut_ptr() as *const c_void, gl::STATIC_DRAW);
+        gl::BufferData(gl::ARRAY_BUFFER, std::mem::size_of_val(&vertices2) as isize, vertices2.as_mut_ptr() as *const c_void, gl::STATIC_DRAW);
         gl::VertexAttribPointer(
             0,
             3,
             gl::FLOAT,
             gl::FALSE,
             3 * std::mem::size_of::<f32>() as GLsizei,
-            vertices.as_mut_ptr().add(3) as *const c_void ,
+            ptr::null()
         );
         gl::EnableVertexAttribArray(0);
 
@@ -248,7 +249,7 @@ fn main() {
             // Rendering code
             gl::UseProgram(program);
             gl::BindVertexArray(vao1);
-            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
             gl::BindVertexArray(vao2);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
             // gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null_mut());
