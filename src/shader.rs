@@ -65,11 +65,11 @@ impl Shader {
                         vertex_shader,
                         512,
                         std::ptr::null_mut(),
-                        info_log.as_mut_ptr() as *mut GLchar,
+                        info_log.as_mut_slice().as_mut_ptr() as *mut GLchar,
                     );
                     println!(
                         "\nERROR::SHADER::VERTEX::COMPILATION_FAILED \n{}",
-                        std::str::from_utf8(&info_log).unwrap()
+                        std::str::from_utf8_unchecked(&info_log)
                     );
                 }
                 ///////////// FRAGMENT SHADER /////////////
@@ -88,11 +88,11 @@ impl Shader {
                         fragment_shader,
                         512,
                         std::ptr::null_mut(),
-                        info_log.as_mut_ptr() as *mut GLchar,
+                        info_log.as_mut_slice().as_mut_ptr() as *mut GLchar,
                     );
                     println!(
                         "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED \n{}",
-                        std::str::from_utf8(&info_log).unwrap()
+                        std::str::from_utf8_unchecked(&info_log)
                     );
                 }
 
@@ -107,12 +107,12 @@ impl Shader {
                         program_id,
                         512,
                         std::ptr::null_mut(),
-                        info_log.as_mut_ptr() as *mut GLchar,
+                        info_log.as_mut_slice().as_mut_ptr() as *mut GLchar,
                     );
                     println!(
                         "ERROR::PROGRAM::LINKING_FAILED\n{}",
                         // std::str::from_utf8(&info_log).unwrap()
-                        std::str::from_utf8(&info_log).unwrap()
+                        std::str::from_utf8_unchecked(&info_log)
                     );
                 }
 
