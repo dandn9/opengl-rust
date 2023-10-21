@@ -179,6 +179,7 @@ fn main() {
             gl::UseProgram(program1.program_id);
             gl::BindVertexArray(vao1);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            gl::UseProgram(program2.program_id);
             gl::BindVertexArray(vao2);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
             // gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null_mut());
