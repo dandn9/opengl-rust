@@ -160,11 +160,15 @@ fn main() {
         gl::DeleteShader(fragment_shader);
 
         #[rustfmt::skip]
-        let mut vertices: [f32; 12] = 
-                [   0.5, 0.5, 0.0, 
-                    0.5, -0.5, 0.0,
-                    -0.5, -0.5, 0.0,
-                    -0.5, 0.5, 0.0
+        let mut vertices: [f32; 18] = 
+                [   0.0, 0.0, 0.0,
+                    0.0, -0.5, 0.0,
+                    -0.5, 0.0, 0.0,
+                    0.0, 0.0, 0.0,
+                    0.5, 0.0, 0.0,
+                    0.0, -0.5, 0.0
+
+
                 ];
         #[rustfmt::skip]
         let mut indices: [u32; 6] = [
@@ -177,7 +181,6 @@ fn main() {
         // Create vao
         gl::GenVertexArrays(1, &mut vao);
         gl::GenBuffers(1, &mut vbo);
-        gl::GenBuffers(1, &mut ebo);
 
         gl::BindVertexArray(vao);
 
@@ -190,9 +193,6 @@ fn main() {
             gl::STATIC_DRAW,
         );
 
-        // Copy indices data to the buffer
-        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-        gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, std::mem::size_of_val(&indices) as isize, indices.as_mut_ptr() as *const c_void, gl::STATIC_DRAW );
 
         // And create a pointer with size
         gl::VertexAttribPointer(
@@ -210,8 +210,8 @@ fn main() {
 
         gl::BindVertexArray(0);
 
-        // Wireframe mode
-        gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+        // // Wireframe mode
+        // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
 
 
 
@@ -228,7 +228,8 @@ fn main() {
             // Rendering code
             gl::UseProgram(program);
             gl::BindVertexArray(vao);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null_mut());
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            // gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null_mut());
         }
 
         // Check and call events and swap the buffers
