@@ -1,3 +1,5 @@
+extern crate nalgebra_glm as glm;
+
 pub mod gl;
 pub mod shader;
 pub mod utils;
@@ -6,6 +8,7 @@ use gl::types::*;
 use glfw::Context;
 use image::GenericImageView;
 use std::os::raw::c_void;
+use utils::to_c_str;
 
 use crate::shader::Shader;
 
@@ -24,6 +27,10 @@ fn process_input(window: &mut glfw::Window) {
 // const fragment_shader_source: &str = r#
 
 fn main() {
+    let mut trans = glm::Mat4::identity();
+    trans = glm::rotate(&trans, 0.5 * glm::pi::<f32>(), &glm::vec3(0., 0., 1.));
+    trans = glm::scale(&trans, &glm::vec3(0.5, 0.5, 0.5));
+
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
     glfw.window_hint(glfw::WindowHint::ContextVersionMajor(3));
     glfw.window_hint(glfw::WindowHint::ContextVersionMinor(3));
@@ -183,12 +190,24 @@ fn main() {
     while !window.should_close() {
         // Input
         process_input(&mut window);
+
+        let mut trans = glm::Mat4::identity();
+        trans = glm::translate(&trans, &glm::vec3(0.5, -0.5, 0.0));
+        trans = glm::rotate(&trans, glfw.get_time() as f32, &glm::vec3(0.0, 0.0, 1.0));
+
         unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
             // Rendering code
             shader.use_shader();
+
+            gl::UniformMatrix4fv(
+                gl::GetUniformLocation(shader.id, to_c_str("transform").as_ptr()),
+                1,
+                gl::FALSE,
+                glm::value_ptr(&trans).as_ptr() as *const f32,
+            );
 
             gl::BindVertexArray(vao);
             gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const c_void);
