@@ -1,43 +1,35 @@
 extern crate nalgebra_glm as glm;
 
+mod camera;
 pub mod gl;
 pub mod shader;
 pub mod utils;
 
+use camera::Camera;
 use gl::types::*;
 use glfw::Context;
 use image::{EncodableLayout, GenericImageView};
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::ops::DerefMut;
 use std::os::raw::c_void;
-use utils::to_c_str;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use utils::{framebuffer_size_callback, process_input, process_mouse, to_c_str};
 
 use crate::shader::Shader;
 
-fn framebuffer_size_callback(width: i32, height: i32) {
-    unsafe {
-        gl::Viewport(0, 0, width, height);
-    }
-}
-
-fn process_input(window: &mut glfw::Window) {
-    if window.get_key(glfw::Key::Escape) == glfw::Action::Press {
-        window.set_should_close(true);
-    }
-}
-
-// const fragment_shader_source: &str = r#
+const SRC_WIDTH: u32 = 800;
+const SRC_HEIGHT: u32 = 600;
 
 fn main() {
-    let mut trans = glm::Mat4::identity();
-    trans = glm::rotate(&trans, 0.5 * glm::pi::<f32>(), &glm::vec3(0., 0., 1.));
-    trans = glm::scale(&trans, &glm::vec3(0.5, 0.5, 0.5));
-
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
     glfw.window_hint(glfw::WindowHint::ContextVersionMajor(3));
     glfw.window_hint(glfw::WindowHint::ContextVersionMinor(3));
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
         glfw::OpenGlProfileHint::Core,
     ));
-    let (mut window, _) = glfw
+    let (mut window, events) = glfw
         .create_window(800, 600, "LearnOpenGL-Rust", glfw::WindowMode::Windowed)
         .expect("Failed to create Glfw window");
 
@@ -45,10 +37,16 @@ fn main() {
 
     gl::load(|symbol| glfw.get_proc_address_raw(symbol));
 
-    unsafe { gl::Viewport(0, 0, 800, 600) };
+    unsafe { gl::Viewport(0, 0, SRC_WIDTH as i32, SRC_HEIGHT as i32) };
     window.set_framebuffer_size_callback(framebuffer_size_callback);
+    window.set_cursor_mode(glfw::CursorMode::Disabled);
+    window.make_current();
+    window.set_cursor_pos_polling(true);
+    window.set_key_polling(true);
+    window.set_scroll_polling(true);
 
     // let vbo: *mut u32 = std::ptr::null();
+    let mut camera = Camera::new(None, None, None, None);
 
     // Create shaders
     let (shader, vao, texture1, texture2) = unsafe {
@@ -239,9 +237,6 @@ fn main() {
         (shader, vao, texture1, texture2)
     };
 
-    let mut view = glm::Mat4::identity();
-    view = glm::translate(&view, &glm::vec3(0., 0., -3.));
-
     let mut projection = glm::perspective(f32::to_radians(45.), 800. / 600., 0.1, 100.);
 
     let cube_position: Vec<glm::Vec3> = vec![
@@ -257,16 +252,33 @@ fn main() {
         glm::vec3(-1.3, 1.0, -1.5),
     ];
 
-    while !window.should_close() {
-        // Input
-        process_input(&mut window);
+    // Camera
 
-        let mut model = glm::Mat4::identity();
-        model = glm::rotate(
-            &model,
-            glfw.get_time() as f32 * f32::to_radians(50.),
-            &glm::vec3(0.5, 1.0, 0.0),
-        );
+    let mut last_frame: f32 = 0.0;
+    let mut delta_time: f32 = 0.0;
+
+    let mut last_x: f32 = 0.0;
+    let mut last_y: f32 = 0.0;
+    let mut first_mouse = true;
+
+    while !window.should_close() {
+        let time = glfw.get_time() as f32;
+
+        delta_time = time - last_frame;
+        last_frame = time;
+
+        // Input
+        // TODO: Make this a polling event, (just have to keep track of when it polled the PRESS event and when it polled the RELEASE event)
+        process_input(&mut window, &mut camera, delta_time);
+        for (_, event) in glfw::flush_messages(&events) {
+            process_mouse(
+                event,
+                &mut camera,
+                &mut first_mouse,
+                &mut last_x,
+                &mut last_y,
+            );
+        }
 
         unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
@@ -280,8 +292,13 @@ fn main() {
             // Rendering code
             shader.use_shader();
 
-            // shader.set_mat4("transform", &trans);
-            shader.set_mat4("model", &model);
+            let projection = glm::perspective(
+                SRC_WIDTH as f32 / SRC_HEIGHT as f32,
+                f32::to_radians(camera.zoom),
+                0.1,
+                100.,
+            );
+            let view = camera.get_view_matrix();
             shader.set_mat4("view", &view);
             shader.set_mat4("projection", &projection);
 
