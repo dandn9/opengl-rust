@@ -37,7 +37,7 @@ impl Camera {
         pitch: Option<f32>,
     ) -> Self {
         let mut camera = Self {
-            position: position.unwrap_or(glm::Vec3::new(0., 0., 0.)),
+            position: position.unwrap_or(glm::Vec3::new(0., 0., 5.)),
             world_up: up.unwrap_or(glm::Vec3::new(0., 1., 0.)),
             front: glm::Vec3::new(0.0, 0.0, -1.0),
             right: glm::Vec3::default(),
