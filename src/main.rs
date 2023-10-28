@@ -43,58 +43,56 @@ fn main() {
     let mut camera = Camera::new(None, None, None, None);
 
     // Create shaders
-    let (shader, vao, texture1, texture2) = unsafe {
+    let (shader, vao, light_vao, light_shader) = unsafe {
         // Configure global opengl state
         // -------------------
         gl::Enable(gl::DEPTH_TEST);
         // Build and compile our shader program
         // -------------------
         let shader = Shader::new("src/shaders/vertex.glsl", "src/shaders/fragment.glsl");
+        let light_shader = Shader::new(
+            "src/shaders/vertex_light.glsl",
+            "src/shaders/fragment_light.glsl",
+        );
 
         #[rustfmt::skip]
-        let mut vertices: Vec<f32> = vec![
-        -0.5, -0.5, -0.5,  0.0, 0.0,
-         0.5, -0.5, -0.5,  1.0, 0.0,
-         0.5,  0.5, -0.5,  1.0, 1.0,
-         0.5,  0.5, -0.5,  1.0, 1.0,
-        -0.5,  0.5, -0.5,  0.0, 1.0,
-        -0.5, -0.5, -0.5,  0.0, 0.0,
-
-        -0.5, -0.5,  0.5,  0.0, 0.0,
-         0.5, -0.5,  0.5,  1.0, 0.0,
-         0.5,  0.5,  0.5,  1.0, 1.0,
-         0.5,  0.5,  0.5,  1.0, 1.0,
-        -0.5,  0.5,  0.5,  0.0, 1.0,
-        -0.5, -0.5,  0.5,  0.0, 0.0,
-
-        -0.5,  0.5,  0.5,  1.0, 0.0,
-        -0.5,  0.5, -0.5,  1.0, 1.0,
-        -0.5, -0.5, -0.5,  0.0, 1.0,
-        -0.5, -0.5, -0.5,  0.0, 1.0,
-        -0.5, -0.5,  0.5,  0.0, 0.0,
-        -0.5,  0.5,  0.5,  1.0, 0.0,
-
-         0.5,  0.5,  0.5,  1.0, 0.0,
-         0.5,  0.5, -0.5,  1.0, 1.0,
-         0.5, -0.5, -0.5,  0.0, 1.0,
-         0.5, -0.5, -0.5,  0.0, 1.0,
-         0.5, -0.5,  0.5,  0.0, 0.0,
-         0.5,  0.5,  0.5,  1.0, 0.0,
-
-        -0.5, -0.5, -0.5,  0.0, 1.0,
-         0.5, -0.5, -0.5,  1.0, 1.0,
-         0.5, -0.5,  0.5,  1.0, 0.0,
-         0.5, -0.5,  0.5,  1.0, 0.0,
-        -0.5, -0.5,  0.5,  0.0, 0.0,
-        -0.5, -0.5, -0.5,  0.0, 1.0,
-
-        -0.5,  0.5, -0.5,  0.0, 1.0,
-         0.5,  0.5, -0.5,  1.0, 1.0,
-         0.5,  0.5,  0.5,  1.0, 0.0,
-         0.5,  0.5,  0.5,  1.0, 0.0,
-        -0.5,  0.5,  0.5,  0.0, 0.0,
-        -0.5,  0.5, -0.5,  0.0, 1.0
-            ];
+            let mut vertices: Vec<f32> = vec![
+            -0.5, -0.5, -0.5,
+            0.5, -0.5, -0.5,
+            0.5, 0.5, -0.5,
+            0.5, 0.5, -0.5,
+            -0.5, 0.5, -0.5,
+            -0.5, -0.5, -0.5,
+            -0.5, -0.5, 0.5,
+            0.5, -0.5, 0.5,
+            0.5, 0.5, 0.5,
+            0.5, 0.5, 0.5,
+            -0.5, 0.5, 0.5,
+            -0.5, -0.5, 0.5,
+            -0.5, 0.5, 0.5,
+            -0.5, 0.5, -0.5,
+            -0.5, -0.5, -0.5,
+            -0.5, -0.5, -0.5,
+            -0.5, -0.5, 0.5,
+            -0.5, 0.5, 0.5,
+            0.5, 0.5, 0.5,
+            0.5, 0.5, -0.5,
+            0.5, -0.5, -0.5,
+            0.5, -0.5, -0.5,
+            0.5, -0.5, 0.5,
+            0.5, 0.5, 0.5,
+            -0.5, -0.5, -0.5,
+            0.5, -0.5, -0.5,
+            0.5, -0.5, 0.5,
+            0.5, -0.5, 0.5,
+            -0.5, -0.5, 0.5,
+            -0.5, -0.5, -0.5,
+            -0.5, 0.5, -0.5,
+            0.5, 0.5, -0.5,
+            0.5, 0.5, 0.5,
+            0.5, 0.5, 0.5,
+            -0.5, 0.5, 0.5,
+            -0.5, 0.5, -0.5, ];
         let mut indices: Vec<u32> = vec![
             0, 1, 3, // First triangle
             3, 1, 2, // Second triangle
@@ -103,6 +101,10 @@ fn main() {
         // ebo = ElementBufferObject, vao = VertexAttributeObject, vbo = VertexBufferObject
         let (mut vao, mut vbo, mut ebo): (GLuint, GLuint, GLuint) = (0, 0, 0);
 
+        // Light vao
+        let mut light_vao: GLuint = 0;
+
+        gl::GenVertexArrays(1, &mut light_vao);
         // Create vao
         gl::GenVertexArrays(1, &mut vao);
         gl::GenBuffers(1, &mut vbo);
@@ -125,28 +127,10 @@ fn main() {
             3,
             gl::FLOAT,
             gl::FALSE,
-            5 * std::mem::size_of::<f32>() as GLsizei,
+            3 * std::mem::size_of::<f32>() as GLsizei,
             0 as *const c_void,
         );
         gl::EnableVertexAttribArray(0);
-        // gl::VertexAttribPointer(
-        //     1,
-        //     3,
-        //     gl::FLOAT,
-        //     gl::FALSE,
-        //     6 * std::mem::size_of::<f32>() as GLsizei,
-        //     (std::mem::size_of::<GLfloat>() * 3) as *const c_void,
-        // );
-        // gl::EnableVertexAttribArray(1);
-        gl::VertexAttribPointer(
-            2,
-            2,
-            gl::FLOAT,
-            gl::FALSE,
-            5 * std::mem::size_of::<f32>() as GLsizei,
-            (std::mem::size_of::<GLfloat>() * 3) as *const c_void,
-        );
-        gl::EnableVertexAttribArray(2);
 
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
         gl::BufferData(
@@ -157,97 +141,38 @@ fn main() {
         );
 
         // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
+
+        gl::BindVertexArray(light_vao);
+        gl::BindBuffer(gl::ARRAY_BUFFER, light_vao);
+        gl::VertexAttribPointer(
+            0,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            3 * std::mem::size_of::<f32>() as GLsizei,
+            0 as *const c_void,
+        );
+        gl::EnableVertexAttribArray(0);
+        gl::BindVertexArray(0);
+
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 
         gl::BindVertexArray(0);
 
+        shader.use_shader();
+
         // // Wireframe mode
         // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
 
-        let img = image::open("assets/container.jpg").unwrap();
-        let mut texture1: GLuint = 0;
-        let mut texture2: GLuint = 0;
-        gl::GenTextures(1, &mut texture1);
-        gl::BindTexture(gl::TEXTURE_2D, texture1);
-
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-        gl::TexParameteri(
-            gl::TEXTURE_2D,
-            gl::TEXTURE_MIN_FILTER,
-            gl::LINEAR_MIPMAP_LINEAR as i32,
-        );
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-        // Load the texture
-
-        // Texture 1
-        gl::TexImage2D(
-            gl::TEXTURE_2D,
-            0,
-            gl::RGB as GLint,
-            img.width() as i32,
-            img.height() as i32,
-            0,
-            gl::RGB,
-            gl::UNSIGNED_BYTE,
-            img.as_bytes().as_ptr() as *const c_void,
-        );
-        gl::GenerateMipmap(gl::TEXTURE_2D);
-        std::mem::drop(img);
-
-        // Texture 2
-        let img = image::open("assets/awesomeface.png").unwrap().flipv();
-
-        gl::GenTextures(1, &mut texture2);
-        gl::BindTexture(gl::TEXTURE_2D, texture2);
-        // gl::ActiveTexture(gl::TEXTURE1);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-        gl::TexParameteri(
-            gl::TEXTURE_2D,
-            gl::TEXTURE_MIN_FILTER,
-            gl::LINEAR_MIPMAP_LINEAR as i32,
-        );
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-        gl::TexImage2D(
-            gl::TEXTURE_2D,
-            0,
-            gl::RGBA as i32,
-            img.width() as i32,
-            img.height() as i32,
-            0,
-            gl::RGBA,
-            gl::UNSIGNED_BYTE,
-            img.into_bytes().as_bytes().as_ptr() as *const c_void,
-        );
-        gl::GenerateMipmap(gl::TEXTURE_2D);
-
-        // tell opengl for each sampler to which texture unit it belongs to (only has to be done once)
-        // -------------------------------------------------------------------------------------------
-        shader.use_shader();
-        shader.set_int("texture1", 0);
-        shader.set_int("texture2", 1);
-
-        (shader, vao, texture1, texture2)
+        (shader, vao, light_vao, light_shader)
     };
 
     let mut projection = glm::perspective(f32::to_radians(45.), 800. / 600., 0.1, 100.);
+    let light_pos = glm::vec3(1.2, 1.0, 2.0);
 
-    let cube_position: Vec<glm::Vec3> = vec![
-        glm::vec3(0.0, 0.0, 0.0),
-        glm::vec3(2.0, 5.0, -15.0),
-        glm::vec3(-1.5, -2.2, -2.5),
-        glm::vec3(-3.8, -2.0, -12.3),
-        glm::vec3(2.4, -0.4, -3.5),
-        glm::vec3(-1.7, 3.0, -7.5),
-        glm::vec3(1.3, -2.0, -2.5),
-        glm::vec3(1.5, 2.0, -2.5),
-        glm::vec3(1.5, 0.2, -1.5),
-        glm::vec3(-1.3, 1.0, -1.5),
-    ];
+    let cube_position: Vec<glm::Vec3> = vec![glm::vec3(0.0, 0.0, 0.0)];
 
     // Camera
-
     let mut last_frame: f32 = 0.0;
     let mut delta_time: f32 = 0.0;
 
@@ -278,11 +203,6 @@ fn main() {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            gl::ActiveTexture(gl::TEXTURE0);
-            gl::BindTexture(gl::TEXTURE_2D, texture1);
-            gl::ActiveTexture(gl::TEXTURE1);
-            gl::BindTexture(gl::TEXTURE_2D, texture2);
-
             // Rendering code
             shader.use_shader();
 
@@ -303,8 +223,20 @@ fn main() {
                 let angle = 20. * i as f32;
                 model = glm::rotate(&model, f32::to_radians(angle), &glm::vec3(1., 0.3, 0.5));
                 shader.set_mat4("model", &model);
+                shader.set_vec3_f("objectColor", 1.0, 0.5, 0.31);
+                shader.set_vec3_f("lightColor", 1.0, 1.0, 1.0);
                 gl::DrawArrays(gl::TRIANGLES, 0, 36);
             }
+
+            light_shader.use_shader();
+            light_shader.set_mat4("view", &view);
+            light_shader.set_mat4("projection", &projection);
+            let mut model = glm::Mat4::identity();
+            model = glm::translate(&model, &light_pos);
+            model = glm::scale(&model, &glm::Vec3::from_element(0.2));
+            light_shader.set_mat4("model", &model);
+            gl::BindVertexArray(light_vao);
+            gl::DrawArrays(gl::TRIANGLES, 0, 36);
         }
 
         // Check and call events and swap the buffers
