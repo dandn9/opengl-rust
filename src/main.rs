@@ -5,11 +5,13 @@ pub mod gl;
 pub mod shader;
 pub mod utils;
 
+use std::ops::Mul;
 use camera::Camera;
 use gl::types::*;
 use glfw::Context;
 use image::EncodableLayout;
 use std::os::raw::c_void;
+use glfw::ffi::glfwGetPrimaryMonitor;
 use utils::{framebuffer_size_callback, process_input, process_mouse};
 
 use crate::shader::Shader;
@@ -19,20 +21,23 @@ const SRC_HEIGHT: u32 = 600;
 
 fn main() {
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
+    let monitor = glfw::Monitor::from_primary();
+    let (scale_x, scale_y) = monitor.get_content_scale();
     glfw.window_hint(glfw::WindowHint::ContextVersionMajor(3));
     glfw.window_hint(glfw::WindowHint::ContextVersionMinor(3));
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
         glfw::OpenGlProfileHint::Core,
     ));
+
     let (mut window, events) = glfw
-        .create_window(800, 600, "LearnOpenGL-Rust", glfw::WindowMode::Windowed)
+        .create_window(SRC_WIDTH * scale_x as u32, SRC_HEIGHT * scale_y as u32, "LearnOpenGL-Rust", glfw::WindowMode::Windowed)
         .expect("Failed to create Glfw window");
 
     glfw.make_context_current(Some(&window));
 
     gl::load(|symbol| glfw.get_proc_address_raw(symbol));
 
-    unsafe { gl::Viewport(0, 0, SRC_WIDTH as i32, SRC_HEIGHT as i32) };
+    unsafe { gl::Viewport(0, 0, (SRC_WIDTH as f32 * scale_x) as i32, (SRC_HEIGHT as f32 * scale_y) as i32) };
     window.set_framebuffer_size_callback(framebuffer_size_callback);
     window.set_cursor_mode(glfw::CursorMode::Disabled);
     window.make_current();
@@ -239,8 +244,27 @@ fn main() {
                 shader.set_mat4("model", &model);
                 shader.set_vec3_f("objectColor", 1.0, 0.5, 0.31);
                 shader.set_vec3_f("lightColor", 1.0, 1.0, 1.0);
-                shader.set_vec3_g("lightPos", &light_pos);
                 shader.set_vec3_g("viewPos", &camera.position);
+                // Light struct
+                let mut light_color = glm::Vec3::identity();
+                light_color.x = f32::sin(glfw.get_time() as f32 * 2.0);
+                light_color.y = f32::sin(glfw.get_time() as f32 * 1.4);
+                light_color.z = f32::sin(glfw.get_time() as f32 * 0.7);
+
+                let light_ambient = glm::Vec3::from_element(0.1).component_mul(&light_color);
+                let light_diffuse = glm::Vec3::from_element(0.5).component_mul(&light_color);
+                let light_specular = glm::Vec3::from_element(1.0).component_mul(&light_color);
+
+                shader.set_vec3_g("light.ambient", &light_ambient);
+                shader.set_vec3_g("light.diffuse", &light_diffuse);
+                shader.set_vec3_g("light.specular", &light_specular);
+                shader.set_vec3_g("light.position", &light_pos);
+
+
+                shader.set_vec3_f("material.ambient", 1.0, 0.5, 0.31);
+                shader.set_vec3_f("material.diffuse", 1.0, 0.5, 0.31);
+                shader.set_vec3_f("material.specular", 0.5, 0.5, 0.5);
+                shader.set_float("material.shininess", 32.);
                 gl::DrawArrays(gl::TRIANGLES, 0, 36);
             }
 
