@@ -1,4 +1,6 @@
+use crate::gl::types::*;
 use crate::{camera, gl, Camera};
+use std::ffi::c_void;
 
 pub fn to_c_str(str: &str) -> std::ffi::CString {
     std::ffi::CString::new(str.as_bytes()).unwrap()
@@ -50,6 +52,48 @@ pub fn process_mouse(
     }
 }
 
+pub fn load_texture(path: &str) -> u32 {
+    unsafe {
+        let mut texture_id = 0;
+        gl::GenTextures(1, &mut texture_id);
+
+        let mut image = image::open(path).unwrap();
+        let data = image.as_bytes().as_ptr();
+        let format = match image {
+            image::DynamicImage::ImageLuma8(_) => gl::RED,
+            image::DynamicImage::ImageLumaA8(_) => gl::RG,
+            image::DynamicImage::ImageRgb8(_) => gl::RGB,
+            image::DynamicImage::ImageRgba8(_) => gl::RGBA,
+            _ => panic!("Unsupported format"),
+        };
+        let width = image.width();
+        let height = image.height();
+
+        gl::BindTexture(gl::TEXTURE_2D, texture_id);
+        gl::TexImage2D(
+            gl::TEXTURE_2D,
+            0,
+            format as GLint,
+            width as GLsizei,
+            height as GLsizei,
+            0,
+            format,
+            gl::UNSIGNED_BYTE,
+            data as *const c_void,
+        );
+        gl::GenerateMipmap(gl::TEXTURE_2D);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as GLint);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as GLint);
+        gl::TexParameteri(
+            gl::TEXTURE_2D,
+            gl::TEXTURE_MIN_FILTER,
+            gl::LINEAR_MIPMAP_LINEAR as GLint,
+        );
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
+
+        return texture_id;
+    }
+}
 pub fn framebuffer_size_callback(width: i32, height: i32) {
     unsafe {
         gl::Viewport(0, 0, width, height);

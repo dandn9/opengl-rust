@@ -5,16 +5,17 @@ pub mod gl;
 pub mod shader;
 pub mod utils;
 
-use std::ops::Mul;
 use camera::Camera;
 use gl::types::*;
+use glfw::ffi::glfwGetPrimaryMonitor;
 use glfw::Context;
 use image::EncodableLayout;
+use std::ops::Mul;
 use std::os::raw::c_void;
-use glfw::ffi::glfwGetPrimaryMonitor;
 use utils::{framebuffer_size_callback, process_input, process_mouse};
 
 use crate::shader::Shader;
+use crate::utils::load_texture;
 
 const SRC_WIDTH: u32 = 800;
 const SRC_HEIGHT: u32 = 600;
@@ -30,14 +31,26 @@ fn main() {
     ));
 
     let (mut window, events) = glfw
-        .create_window(SRC_WIDTH * scale_x as u32, SRC_HEIGHT * scale_y as u32, "LearnOpenGL-Rust", glfw::WindowMode::Windowed)
+        .create_window(
+            SRC_WIDTH * scale_x as u32,
+            SRC_HEIGHT * scale_y as u32,
+            "LearnOpenGL-Rust",
+            glfw::WindowMode::Windowed,
+        )
         .expect("Failed to create Glfw window");
 
     glfw.make_context_current(Some(&window));
 
     gl::load(|symbol| glfw.get_proc_address_raw(symbol));
 
-    unsafe { gl::Viewport(0, 0, (SRC_WIDTH as f32 * scale_x) as i32, (SRC_HEIGHT as f32 * scale_y) as i32) };
+    unsafe {
+        gl::Viewport(
+            0,
+            0,
+            (SRC_WIDTH as f32 * scale_x) as i32,
+            (SRC_HEIGHT as f32 * scale_y) as i32,
+        )
+    };
     window.set_framebuffer_size_callback(framebuffer_size_callback);
     window.set_cursor_mode(glfw::CursorMode::Disabled);
     window.make_current();
@@ -48,7 +61,7 @@ fn main() {
     let mut camera = Camera::new(None, None, None, None);
 
     // Create shaders
-    let (shader, vao, light_vao, light_shader) = unsafe {
+    let (shader, vao, light_vao, light_shader, texture) = unsafe {
         // Configure global opengl state
         // -------------------
         gl::Enable(gl::DEPTH_TEST);
@@ -62,47 +75,49 @@ fn main() {
 
         #[rustfmt::skip]
             let mut vertices: Vec<f32> = vec![
-  -0.5 , -0.5 , -0.5 ,  0.0 ,  0.0 , -1.0 ,
-     0.5 , -0.5 , -0.5 ,  0.0 ,  0.0 , -1.0 ,
-     0.5 ,  0.5 , -0.5 ,  0.0 ,  0.0 , -1.0 ,
-     0.5 ,  0.5 , -0.5 ,  0.0 ,  0.0 , -1.0 ,
-    -0.5 ,  0.5 , -0.5 ,  0.0 ,  0.0 , -1.0 ,
-    -0.5 , -0.5 , -0.5 ,  0.0 ,  0.0 , -1.0 ,
+            // positions          // normals           // texture coords
+            -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0, 0.0,
+            0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  1.0, 0.0,
+            0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  1.0, 1.0,
+            0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  1.0, 1.0,
+            -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  0.0, 1.0,
+            -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0, 0.0,
 
-    -0.5 , -0.5 ,  0.5 ,  0.0 ,  0.0 , 1.0 ,
-     0.5 , -0.5 ,  0.5 ,  0.0 ,  0.0 , 1.0 ,
-     0.5 ,  0.5 ,  0.5 ,  0.0 ,  0.0 , 1.0 ,
-     0.5 ,  0.5 ,  0.5 ,  0.0 ,  0.0 , 1.0 ,
-    -0.5 ,  0.5 ,  0.5 ,  0.0 ,  0.0 , 1.0 ,
-    -0.5 , -0.5 ,  0.5 ,  0.0 ,  0.0 , 1.0 ,
+            -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,   0.0, 0.0,
+            0.5, -0.5,  0.5,  0.0,  0.0, 1.0,   1.0, 0.0,
+            0.5,  0.5,  0.5,  0.0,  0.0, 1.0,   1.0, 1.0,
+            0.5,  0.5,  0.5,  0.0,  0.0, 1.0,   1.0, 1.0,
+            -0.5,  0.5,  0.5,  0.0,  0.0, 1.0,   0.0, 1.0,
+            -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,   0.0, 0.0,
 
-    -0.5 ,  0.5 ,  0.5 , -1.0 ,  0.0 ,  0.0 ,
-    -0.5 ,  0.5 , -0.5 , -1.0 ,  0.0 ,  0.0 ,
-    -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
-    -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
-    -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,
-    -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
+            -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,  1.0, 0.0,
+            -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,  1.0, 1.0,
+            -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,  0.0, 1.0,
+            -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,  0.0, 1.0,
+            -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,  0.0, 0.0,
+            -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,  1.0, 0.0,
 
-     0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
-     0.5,  0.5, -0.5,  1.0,  0.0,  0.0,
-     0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
-     0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
-     0.5, -0.5,  0.5,  1.0,  0.0,  0.0,
-     0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
+            0.5,  0.5,  0.5,  1.0,  0.0,  0.0,  1.0, 0.0,
+            0.5,  0.5, -0.5,  1.0,  0.0,  0.0,  1.0, 1.0,
+            0.5, -0.5, -0.5,  1.0,  0.0,  0.0,  0.0, 1.0,
+            0.5, -0.5, -0.5,  1.0,  0.0,  0.0,  0.0, 1.0,
+            0.5, -0.5,  0.5,  1.0,  0.0,  0.0,  0.0, 0.0,
+            0.5,  0.5,  0.5,  1.0,  0.0,  0.0,  1.0, 0.0,
 
-    -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-     0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-     0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-     0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-    -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-    -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+            -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  0.0, 1.0,
+            0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  1.0, 1.0,
+            0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  1.0, 0.0,
+            0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  1.0, 0.0,
+            -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  0.0, 0.0,
+            -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  0.0, 1.0,
 
-    -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
-     0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
-     0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-     0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-    -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-    -0.5,  0.5, -0.5,  0.0,  1.0,  0.0];
+            -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0, 1.0,
+            0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  1.0, 1.0,
+            0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  1.0, 0.0,
+            0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  1.0, 0.0,
+            -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  0.0, 0.0,
+            -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0, 1.0
+        ];
         let mut indices: Vec<u32> = vec![
             0, 1, 3, // First triangle
             3, 1, 2, // Second triangle
@@ -137,7 +152,7 @@ fn main() {
             3,
             gl::FLOAT,
             gl::FALSE,
-            6 * std::mem::size_of::<f32>() as GLsizei,
+            8 * std::mem::size_of::<f32>() as GLsizei,
             0 as *const c_void,
         );
         gl::EnableVertexAttribArray(0);
@@ -146,10 +161,19 @@ fn main() {
             3,
             gl::FLOAT,
             gl::FALSE,
-            6 * std::mem::size_of::<f32>() as GLsizei,
+            8 * std::mem::size_of::<f32>() as GLsizei,
             (3 * std::mem::size_of::<f32>()) as *const c_void,
         );
         gl::EnableVertexAttribArray(1);
+        gl::VertexAttribPointer(
+            2,
+            2,
+            gl::FLOAT,
+            gl::FALSE,
+            8 * std::mem::size_of::<f32>() as GLsizei,
+            (6 * std::mem::size_of::<f32>()) as *const c_void,
+        );
+        gl::EnableVertexAttribArray(2);
 
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
         gl::BufferData(
@@ -168,7 +192,7 @@ fn main() {
             3,
             gl::FLOAT,
             gl::FALSE,
-            6 * std::mem::size_of::<f32>() as GLsizei,
+            8 * std::mem::size_of::<f32>() as GLsizei,
             0 as *const c_void,
         );
         gl::EnableVertexAttribArray(0);
@@ -180,10 +204,13 @@ fn main() {
 
         shader.use_shader();
 
+        let texture = load_texture("assets/container2.png");
+        shader.set_int("material.diffuse", 0);
+
         // // Wireframe mode
         // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
 
-        (shader, vao, light_vao, light_shader)
+        (shader, vao, light_vao, light_shader, texture)
     };
 
     let mut projection = glm::perspective(f32::to_radians(45.), 800. / 600., 0.1, 100.);
@@ -260,11 +287,14 @@ fn main() {
                 shader.set_vec3_g("light.specular", &light_specular);
                 shader.set_vec3_g("light.position", &light_pos);
 
-
                 shader.set_vec3_f("material.ambient", 1.0, 0.5, 0.31);
                 shader.set_vec3_f("material.diffuse", 1.0, 0.5, 0.31);
                 shader.set_vec3_f("material.specular", 0.5, 0.5, 0.5);
                 shader.set_float("material.shininess", 32.);
+
+                gl::ActiveTexture(gl::TEXTURE0);
+                gl::BindTexture(gl::TEXTURE_2D, texture);
+
                 gl::DrawArrays(gl::TRIANGLES, 0, 36);
             }
 
