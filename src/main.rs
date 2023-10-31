@@ -206,11 +206,13 @@ fn main() {
 
         let texture = load_texture("assets/container2.png");
         shader.set_int("material.diffuse", 0);
+        let specular = load_texture("assets/container2_specular.png");
+        shader.set_int("material.specular", 1);
 
         // // Wireframe mode
         // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
 
-        (shader, vao, light_vao, light_shader, texture)
+        (shader, vao, light_vao, light_shader, (texture, specular))
     };
 
     let mut projection = glm::perspective(f32::to_radians(45.), 800. / 600., 0.1, 100.);
@@ -269,14 +271,11 @@ fn main() {
                 let angle = 20. * i as f32;
                 model = glm::rotate(&model, f32::to_radians(angle), &glm::vec3(1., 0.3, 0.5));
                 shader.set_mat4("model", &model);
-                shader.set_vec3_f("objectColor", 1.0, 0.5, 0.31);
+                shader.set_vec3_f("objectColor", 1.0, 1.0, 1.0);
                 shader.set_vec3_f("lightColor", 1.0, 1.0, 1.0);
                 shader.set_vec3_g("viewPos", &camera.position);
                 // Light struct
-                let mut light_color = glm::Vec3::identity();
-                light_color.x = f32::sin(glfw.get_time() as f32 * 2.0);
-                light_color.y = f32::sin(glfw.get_time() as f32 * 1.4);
-                light_color.z = f32::sin(glfw.get_time() as f32 * 0.7);
+                let mut light_color = glm::Vec3::from_element(1.0);
 
                 let light_ambient = glm::Vec3::from_element(0.1).component_mul(&light_color);
                 let light_diffuse = glm::Vec3::from_element(0.5).component_mul(&light_color);
@@ -293,7 +292,9 @@ fn main() {
                 shader.set_float("material.shininess", 32.);
 
                 gl::ActiveTexture(gl::TEXTURE0);
-                gl::BindTexture(gl::TEXTURE_2D, texture);
+                gl::BindTexture(gl::TEXTURE_2D, texture.0);
+                gl::ActiveTexture(gl::TEXTURE1);
+                gl::BindTexture(gl::TEXTURE_2D, texture.1);
 
                 gl::DrawArrays(gl::TRIANGLES, 0, 36);
             }
