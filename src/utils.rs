@@ -2,6 +2,27 @@ use crate::gl::types::*;
 use crate::{camera, gl, Camera};
 use std::ffi::c_void;
 
+// Helps with all the nasty casts
+pub struct ToCVoid<T>(pub T);
+impl Into<*const c_void> for ToCVoid<usize> {
+    fn into(self) -> *const c_void {
+        self.0 as *const c_void
+    }
+}
+impl Into<*const c_void> for ToCVoid<&Vec<f32>> {
+    fn into(self) -> *const c_void {
+        self.0.as_ptr() as *const c_void
+    }
+}
+
+// Does this behave weirdly because it gets deallocated since it gets consumed ????
+// impl Into<*const c_void> for ToCVoid<Vec<f32>> {
+//     fn into(self) -> *const c_void {
+//         let b = self.0.as_ptr();
+//         println!("INTO WITHOUT & {:?} - {:?}", b, b as *const c_void);
+//         b as *const c_void
+//     }
+// }
 pub fn to_c_str(str: &str) -> std::ffi::CString {
     std::ffi::CString::new(str.as_bytes()).unwrap()
 }

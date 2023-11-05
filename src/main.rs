@@ -1,21 +1,21 @@
+extern crate gl;
 extern crate nalgebra_glm as glm;
 
 mod camera;
-pub mod gl;
 pub mod shader;
 pub mod utils;
 
 use camera::Camera;
 use gl::types::*;
-use glfw::ffi::glfwGetPrimaryMonitor;
 use glfw::Context;
 use image::EncodableLayout;
+use std::mem::{size_of, size_of_val};
 use std::ops::Mul;
 use std::os::raw::c_void;
 use utils::{framebuffer_size_callback, process_input, process_mouse};
 
 use crate::shader::Shader;
-use crate::utils::load_texture;
+use crate::utils::{load_texture, ToCVoid};
 
 const SRC_WIDTH: u32 = 800;
 const SRC_HEIGHT: u32 = 600;
@@ -40,120 +40,117 @@ fn main() {
         .expect("Failed to create Glfw window");
 
     glfw.make_context_current(Some(&window));
-
-    gl::load(|symbol| glfw.get_proc_address_raw(symbol));
-
-    unsafe {
-        gl::Viewport(
-            0,
-            0,
-            (SRC_WIDTH as f32 * scale_x) as i32,
-            (SRC_HEIGHT as f32 * scale_y) as i32,
-        )
-    };
+    // TODO: Make this a polled event
     window.set_framebuffer_size_callback(framebuffer_size_callback);
-    window.set_cursor_mode(glfw::CursorMode::Disabled);
-    window.make_current();
     window.set_cursor_pos_polling(true);
     window.set_key_polling(true);
     window.set_scroll_polling(true);
+    window.set_cursor_mode(glfw::CursorMode::Disabled);
+    gl::load_with(|symbol| glfw.get_proc_address_raw(symbol));
+    window.make_current();
 
-    let mut camera = Camera::new(None, None, None, None);
+    let lighting_shader = Shader::new("src/shaders/vertex.glsl", "src/shaders/fragment.glsl");
+    let lightcube_shader = Shader::new(
+        "src/shaders/vertex_light_cube.glsl",
+        "src/shaders/fragment_light_cube.glsl",
+    );
+    let (mut VBO, mut cubeVAO): (GLuint, GLuint) = (0, 0);
+    let mut lightCubeVAO: GLuint = 0;
+    // Load the textures
+    let diffuse_map = load_texture("assets/container2.png");
+    let specular_map = load_texture("assets/container2_specular.png");
 
-    // Create shaders
-    let (shader, vao, light_vao, light_shader, texture) = unsafe {
+    // ---------------------- DATA
+    let cube_position: Vec<glm::Vec3> = vec![
+        glm::vec3(0.0, 0.0, 0.0),
+        glm::vec3(2.0, 5.0, -15.0),
+        glm::vec3(-1.5, -2.2, -2.5),
+        glm::vec3(-3.8, -2.0, -12.3),
+        glm::vec3(2.4, -0.4, -3.5),
+        glm::vec3(-1.7, 3.0, -7.5),
+        glm::vec3(1.3, -2.0, -2.5),
+        glm::vec3(1.5, 2.0, -2.5),
+        glm::vec3(1.5, 0.2, -1.5),
+        glm::vec3(-1.3, 1.0, -1.5),
+    ];
+
+    #[rustfmt::skip]
+        let vertices: Vec<f32> = vec![
+        // positions       // normals        // texture coords
+        -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0,  0.0,
+        0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  1.0,  0.0,
+        0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  1.0,  1.0,
+        0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  1.0,  1.0,
+        -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  0.0,  1.0,
+        -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0,  0.0,
+
+        -0.5, -0.5,  0.5,  0.0,  0.0,  1.0,  0.0,  0.0,
+        0.5, -0.5,  0.5,  0.0,  0.0,  1.0,  1.0,  0.0,
+        0.5,  0.5,  0.5,  0.0,  0.0,  1.0,  1.0,  1.0,
+        0.5,  0.5,  0.5,  0.0,  0.0,  1.0,  1.0,  1.0,
+        -0.5,  0.5,  0.5,  0.0,  0.0,  1.0,  0.0,  1.0,
+        -0.5, -0.5,  0.5,  0.0,  0.0,  1.0,  0.0,  0.0,
+
+        -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,  1.0,  0.0,
+        -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,  1.0,  1.0,
+        -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,  0.0,  1.0,
+        -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,  0.0,  1.0,
+        -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,  0.0,  0.0,
+        -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,  1.0,  0.0,
+
+        0.5,  0.5,  0.5,  1.0,  0.0,  0.0,  1.0,  0.0,
+        0.5,  0.5, -0.5,  1.0,  0.0,  0.0,  1.0,  1.0,
+        0.5, -0.5, -0.5,  1.0,  0.0,  0.0,  0.0,  1.0,
+        0.5, -0.5, -0.5,  1.0,  0.0,  0.0,  0.0,  1.0,
+        0.5, -0.5,  0.5,  1.0,  0.0,  0.0,  0.0,  0.0,
+        0.5,  0.5,  0.5,  1.0,  0.0,  0.0,  1.0,  0.0,
+
+        -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  0.0,  1.0,
+        0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  1.0,  1.0,
+        0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  1.0,  0.0,
+        0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  1.0,  0.0,
+        -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  0.0,  0.0,
+        -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  0.0,  1.0,
+
+        -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0,  1.0,
+        0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  1.0,  1.0,
+        0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  1.0,  0.0,
+        0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  1.0,  0.0,
+        -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  0.0,  0.0,
+        -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0,  1.0
+    ];
+    println!(
+        "{} - {} {} {} - len {}",
+        size_of_val(vertices.as_slice()),
+        size_of_val(&vertices),
+        size_of_val(&vertices.as_ptr()),
+        size_of_val(vertices.iter().as_ref()),
+        vertices.len()
+    );
+
+    unsafe {
         // Configure global opengl state
-        // -------------------
         gl::Enable(gl::DEPTH_TEST);
-        // Build and compile our shader program
-        // -------------------
-        let shader = Shader::new("src/shaders/vertex.glsl", "src/shaders/fragment.glsl");
-        let light_shader = Shader::new(
-            "src/shaders/vertex_light.glsl",
-            "src/shaders/fragment_light.glsl",
-        );
+        // Build and compile our shaders programs
+        // First, configure the cube's vao and vbo
+        gl::GenVertexArrays(1, &mut cubeVAO);
+        gl::GenBuffers(1, &mut VBO);
 
-        #[rustfmt::skip]
-            let mut vertices: Vec<f32> = vec![
-            // positions          // normals           // texture coords
-            -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0, 0.0,
-            0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  1.0, 0.0,
-            0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  1.0, 1.0,
-            0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  1.0, 1.0,
-            -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,  0.0, 1.0,
-            -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0, 0.0,
-
-            -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,   0.0, 0.0,
-            0.5, -0.5,  0.5,  0.0,  0.0, 1.0,   1.0, 0.0,
-            0.5,  0.5,  0.5,  0.0,  0.0, 1.0,   1.0, 1.0,
-            0.5,  0.5,  0.5,  0.0,  0.0, 1.0,   1.0, 1.0,
-            -0.5,  0.5,  0.5,  0.0,  0.0, 1.0,   0.0, 1.0,
-            -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,   0.0, 0.0,
-
-            -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,  1.0, 0.0,
-            -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,  1.0, 1.0,
-            -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,  0.0, 1.0,
-            -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,  0.0, 1.0,
-            -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,  0.0, 0.0,
-            -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,  1.0, 0.0,
-
-            0.5,  0.5,  0.5,  1.0,  0.0,  0.0,  1.0, 0.0,
-            0.5,  0.5, -0.5,  1.0,  0.0,  0.0,  1.0, 1.0,
-            0.5, -0.5, -0.5,  1.0,  0.0,  0.0,  0.0, 1.0,
-            0.5, -0.5, -0.5,  1.0,  0.0,  0.0,  0.0, 1.0,
-            0.5, -0.5,  0.5,  1.0,  0.0,  0.0,  0.0, 0.0,
-            0.5,  0.5,  0.5,  1.0,  0.0,  0.0,  1.0, 0.0,
-
-            -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  0.0, 1.0,
-            0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  1.0, 1.0,
-            0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  1.0, 0.0,
-            0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  1.0, 0.0,
-            -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,  0.0, 0.0,
-            -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,  0.0, 1.0,
-
-            -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0, 1.0,
-            0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  1.0, 1.0,
-            0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  1.0, 0.0,
-            0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  1.0, 0.0,
-            -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  0.0, 0.0,
-            -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0, 1.0
-        ];
-        let mut indices: Vec<u32> = vec![
-            0, 1, 3, // First triangle
-            3, 1, 2, // Second triangle
-        ];
-
-        // ebo = ElementBufferObject, vao = VertexAttributeObject, vbo = VertexBufferObject
-        let (mut vao, mut vbo, mut ebo): (GLuint, GLuint, GLuint) = (0, 0, 0);
-
-        // Light vao
-        let mut light_vao: GLuint = 0;
-
-        gl::GenVertexArrays(1, &mut light_vao);
-        // Create vao
-        gl::GenVertexArrays(1, &mut vao);
-        gl::GenBuffers(1, &mut vbo);
-        gl::GenBuffers(1, &mut ebo);
-
-        gl::BindVertexArray(vao);
-
-        // Copy vertex data to the buffer
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BindBuffer(gl::ARRAY_BUFFER, VBO);
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            std::mem::size_of_val(vertices.as_slice()) as isize,
-            vertices.as_mut_slice().as_mut_ptr() as *const c_void,
+            size_of_val(vertices.as_slice()) as GLsizeiptr,
+            ToCVoid(&vertices).into(),
             gl::STATIC_DRAW,
         );
-
-        // And create a pointer with size
+        gl::BindVertexArray(cubeVAO);
         gl::VertexAttribPointer(
             0,
             3,
             gl::FLOAT,
             gl::FALSE,
-            8 * std::mem::size_of::<f32>() as GLsizei,
-            0 as *const c_void,
+            (8 * size_of::<f32>()) as GLsizei,
+            ToCVoid(0).into(),
         );
         gl::EnableVertexAttribArray(0);
         gl::VertexAttribPointer(
@@ -161,8 +158,8 @@ fn main() {
             3,
             gl::FLOAT,
             gl::FALSE,
-            8 * std::mem::size_of::<f32>() as GLsizei,
-            (3 * std::mem::size_of::<f32>()) as *const c_void,
+            (8 * size_of::<f32>()) as GLsizei,
+            ToCVoid(3 * size_of::<GLfloat>()).into(),
         );
         gl::EnableVertexAttribArray(1);
         gl::VertexAttribPointer(
@@ -170,56 +167,38 @@ fn main() {
             2,
             gl::FLOAT,
             gl::FALSE,
-            8 * std::mem::size_of::<f32>() as GLsizei,
-            (6 * std::mem::size_of::<f32>()) as *const c_void,
+            (8 * size_of::<f32>()) as GLsizei,
+            ToCVoid(6 * size_of::<GLfloat>()).into(),
         );
         gl::EnableVertexAttribArray(2);
 
-        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-        gl::BufferData(
-            gl::ELEMENT_ARRAY_BUFFER,
-            std::mem::size_of_val(indices.as_slice()) as isize,
-            indices.as_mut_slice().as_mut_ptr() as *const c_void,
-            gl::STATIC_DRAW,
-        );
-
-        // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-
-        gl::BindVertexArray(light_vao);
-        gl::BindBuffer(gl::ARRAY_BUFFER, light_vao);
+        // Second, configure the light's vao (vbo stays the same since the vertices are the same)
+        gl::GenVertexArrays(1, &mut lightCubeVAO);
+        gl::BindVertexArray(lightCubeVAO);
+        gl::BindBuffer(gl::ARRAY_BUFFER, VBO);
         gl::VertexAttribPointer(
             0,
             3,
             gl::FLOAT,
             gl::FALSE,
-            8 * std::mem::size_of::<f32>() as GLsizei,
-            0 as *const c_void,
+            (8 * size_of::<f32>()) as GLsizei,
+            ToCVoid(0).into(),
         );
         gl::EnableVertexAttribArray(0);
-        gl::BindVertexArray(0);
-
-        gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-
-        gl::BindVertexArray(0);
-
-        shader.use_shader();
-
-        let texture = load_texture("assets/container2.png");
-        shader.set_int("material.diffuse", 0);
-        let specular = load_texture("assets/container2_specular.png");
-        shader.set_int("material.specular", 1);
-
-        // // Wireframe mode
-        // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
-
-        (shader, vao, light_vao, light_shader, (texture, specular))
     };
 
-    let mut projection = glm::perspective(f32::to_radians(45.), 800. / 600., 0.1, 100.);
+    // Shader configuration
+    // --------------------
+    lighting_shader.use_shader();
+    lighting_shader.set_int("material.diffuse", 0);
+    lighting_shader.set_int("material.specular", 1);
+
     let light_pos = glm::vec3(1.2, 1.0, 2.0);
 
-    let cube_position: Vec<glm::Vec3> = vec![glm::vec3(0.0, 0.0, 0.0)];
-
+    let mut camera = Camera {
+        position: glm::Vec3::new(0.0, 0.0, 3.0),
+        ..Camera::default()
+    };
     // Camera
     let mut last_frame: f32 = 0.0;
     let mut delta_time: f32 = 0.0;
@@ -228,6 +207,8 @@ fn main() {
     let mut last_y: f32 = 0.0;
     let mut first_mouse = true;
 
+    // Render loop
+    // ---------------------------
     while !window.should_close() {
         let time = glfw.get_time() as f32;
 
@@ -250,68 +231,64 @@ fn main() {
         unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-
-            // Rendering code
-            shader.use_shader();
-
-            let projection = glm::perspective(
-                SRC_WIDTH as f32 / SRC_HEIGHT as f32,
-                f32::to_radians(camera.zoom),
-                0.1,
-                100.,
-            );
-            let view = camera.get_view_matrix();
-            shader.set_mat4("view", &view);
-            shader.set_mat4("projection", &projection);
-
-            gl::BindVertexArray(vao);
-            for i in 0..cube_position.len() {
-                let mut model = glm::Mat4::identity();
-                model = glm::translate(&model, &cube_position[i]);
-                let angle = 20. * i as f32;
-                model = glm::rotate(&model, f32::to_radians(angle), &glm::vec3(1., 0.3, 0.5));
-                shader.set_mat4("model", &model);
-                shader.set_vec3_f("objectColor", 1.0, 1.0, 1.0);
-                shader.set_vec3_f("lightColor", 1.0, 1.0, 1.0);
-                shader.set_vec3_g("viewPos", &camera.position);
-                // Light struct
-                let mut light_color = glm::Vec3::from_element(1.0);
-
-                let light_ambient = glm::Vec3::from_element(0.1).component_mul(&light_color);
-                let light_diffuse = glm::Vec3::from_element(0.5).component_mul(&light_color);
-                let light_specular = glm::Vec3::from_element(1.0).component_mul(&light_color);
-
-                shader.set_vec3_g("light.ambient", &light_ambient);
-                shader.set_vec3_g("light.diffuse", &light_diffuse);
-                shader.set_vec3_g("light.specular", &light_specular);
-                shader.set_vec3_g("light.position", &light_pos);
-
-                shader.set_vec3_f("material.ambient", 1.0, 0.5, 0.31);
-                shader.set_vec3_f("material.diffuse", 1.0, 0.5, 0.31);
-                shader.set_vec3_f("material.specular", 0.5, 0.5, 0.5);
-                shader.set_float("material.shininess", 32.);
-
-                gl::ActiveTexture(gl::TEXTURE0);
-                gl::BindTexture(gl::TEXTURE_2D, texture.0);
-                gl::ActiveTexture(gl::TEXTURE1);
-                gl::BindTexture(gl::TEXTURE_2D, texture.1);
-
-                gl::DrawArrays(gl::TRIANGLES, 0, 36);
-            }
-
-            light_shader.use_shader();
-            light_shader.set_mat4("view", &view);
-            light_shader.set_mat4("projection", &projection);
-            let mut model = glm::Mat4::identity();
-            model = glm::translate(&model, &light_pos);
-            model = glm::scale(&model, &glm::Vec3::from_element(0.2));
-            light_shader.set_mat4("model", &model);
-            gl::BindVertexArray(light_vao);
-            gl::DrawArrays(gl::TRIANGLES, 0, 36);
         }
+        lighting_shader.use_shader();
+        lighting_shader.set_vec3_g("light.position", &camera.position);
+        lighting_shader.set_vec3_g("light.direction", &camera.front);
+        lighting_shader.set_float("light.cutOff", f32::cos(f32::to_radians(12.5)));
+        lighting_shader.set_float("light.outerCutOff", f32::cos(f32::to_radians(17.5)));
+        lighting_shader.set_vec3_g("viewPos", &camera.position);
 
-        // Check and call events and swap the buffers
+        // Light properties
+        lighting_shader.set_vec3_f("light.ambient", 0.1, 0.1, 0.1);
+        // we configure the diffuse intensity slightly higher; the right lighting conditions differ with each lighting method and environment.
+        // each environment and lighting type requires some tweaking to get the best out of your environment.
+        lighting_shader.set_vec3_f("light.diffuse", 0.8, 0.8, 0.8);
+        lighting_shader.set_vec3_f("light.specular", 1.0, 1.0, 1.0);
+        lighting_shader.set_float("light.constant", 1.0);
+        lighting_shader.set_float("light.linear", 0.09);
+        lighting_shader.set_float("light.quadratic", 0.032);
+        // Material properties
+        lighting_shader.set_float("material.shininess", 32.0);
+
+        // View/projection transformations
+        let projection = glm::perspective(
+            SRC_WIDTH as f32 / SRC_HEIGHT as f32,
+            f32::to_radians(camera.zoom),
+            0.1,
+            100.,
+        );
+        let view = camera.get_view_matrix();
+        lighting_shader.set_mat4("projection", &projection);
+        lighting_shader.set_mat4("view", &view);
+        // World transformation
+        let model = glm::Mat4::identity();
+        lighting_shader.set_mat4("model", &model);
+
+        // bind diffuse map
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindTexture(gl::TEXTURE_2D, diffuse_map);
+            gl::ActiveTexture(gl::TEXTURE1);
+            gl::BindTexture(gl::TEXTURE_2D, specular_map);
+        }
+        // render containers
+        unsafe {
+            gl::BindVertexArray(cubeVAO);
+        }
+        for i in 0..cube_position.len() {
+            let mut model = glm::Mat4::identity();
+            model = glm::translate(&model, &cube_position[i]);
+            let angle = 20. * i as f32;
+            model = glm::rotate(&model, f32::to_radians(angle), &glm::vec3(1.0, 0.3, 0.5));
+            lighting_shader.set_mat4("model", &model);
+
+            unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 36) }
+        }
         window.swap_buffers();
         glfw.poll_events();
+    }
+    unsafe {
+        gl::DeleteVertexArrays(1, &cubeVAO);
     }
 }

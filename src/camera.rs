@@ -30,27 +30,6 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(
-        position: Option<glm::Vec3>,
-        up: Option<glm::Vec3>,
-        yaw: Option<f32>,
-        pitch: Option<f32>,
-    ) -> Self {
-        let mut camera = Self {
-            position: position.unwrap_or(glm::Vec3::new(0., 0., 5.)),
-            world_up: up.unwrap_or(glm::Vec3::new(0., 1., 0.)),
-            front: glm::Vec3::new(0.0, 0.0, -1.0),
-            right: glm::Vec3::default(),
-            up: glm::Vec3::default(),
-            yaw: YAW,
-            pitch: PITCH,
-            movement_speed: SPEED,
-            mouse_sensitivity: SENSITIVITY,
-            zoom: ZOOM,
-        };
-        Camera::update_camera_vectors(&mut camera);
-        return camera;
-    }
     pub fn get_view_matrix(&self) -> glm::Mat4 {
         glm::look_at(&self.position, &(self.position + self.front), &self.up)
     }
@@ -103,5 +82,23 @@ impl Camera {
         if self.zoom > 45.0 {
             self.zoom = 45.0
         }
+    }
+}
+impl Default for Camera {
+    fn default() -> Self {
+        let mut camera = Self {
+            position: glm::Vec3::new(0., 0., 5.),
+            world_up: glm::Vec3::new(0., 1., 0.),
+            front: glm::Vec3::new(0.0, 0.0, -1.0),
+            right: glm::Vec3::default(),
+            up: glm::Vec3::default(),
+            yaw: YAW,
+            pitch: PITCH,
+            movement_speed: SPEED,
+            mouse_sensitivity: SENSITIVITY,
+            zoom: ZOOM,
+        };
+        camera.update_camera_vectors();
+        camera
     }
 }

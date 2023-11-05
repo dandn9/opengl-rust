@@ -1,6 +1,6 @@
-use crate::gl;
-use crate::gl::types::*;
+extern crate gl;
 use crate::utils::to_c_str;
+use gl::types::*;
 pub struct Shader {
     pub id: u32,
 }
