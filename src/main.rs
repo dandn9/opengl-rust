@@ -60,26 +60,6 @@ fn main() {
         "src/shaders/fragment_light_cube.glsl",
     );
 
-    // ---------------------- DATA
-    let point_light_positions: &[glm::Vec3] = &[
-        glm::vec3(0.7, 0.2, 2.0),
-        glm::vec3(2.3, -3.3, -4.0),
-        glm::vec3(-4.0, 2.0, -12.0),
-        glm::vec3(0.0, 0.0, -3.0),
-    ];
-    let cube_position: &[glm::Vec3] = &[
-        glm::vec3(0.0, 0.0, 0.0),
-        glm::vec3(2.0, 5.0, -15.0),
-        glm::vec3(-1.5, -2.2, -2.5),
-        glm::vec3(-3.8, -2.0, -12.3),
-        glm::vec3(2.4, -0.4, -3.5),
-        glm::vec3(-1.7, 3.0, -7.5),
-        glm::vec3(1.3, -2.0, -2.5),
-        glm::vec3(1.5, 2.0, -2.5),
-        glm::vec3(1.5, 0.2, -1.5),
-        glm::vec3(-1.3, 1.0, -1.5),
-    ];
-
     #[rustfmt::skip]
         let vertices: &[f32] = &[
         // positions       // normals        // texture coords
@@ -125,14 +105,6 @@ fn main() {
         -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  0.0,  0.0,
         -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0,  1.0
     ];
-    println!(
-        "{} - {} {}  - len {}",
-        // size_of_val(vertices.as_slice()),
-        size_of_val(&vertices),
-        size_of_val(&vertices.as_ptr()),
-        size_of_val(vertices.iter().as_ref()),
-        vertices.len()
-    );
 
     unsafe {
         // Configure global opengl state
@@ -210,8 +182,6 @@ fn main() {
             let model = glm::Mat4::identity();
             lighting_shader.set_mat4("model", &model);
             our_model.draw(&lighting_shader);
-
-            // unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 36) }
 
             // Light cubes
             window.swap_buffers();

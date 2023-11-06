@@ -52,11 +52,9 @@ impl Mesh {
         mesh
     }
     pub fn draw(&self, shader: &Shader) {
-        println!("MESH DRAW");
         let mut diffuse_nr: GLuint = 1;
         let mut specular_nr: GLuint = 1;
         for (i, texture) in self.textures.iter().enumerate() {
-            println!("ITERATING TEXTURES");
             unsafe {
                 gl::ActiveTexture(gl::TEXTURE0 + i as u32);
             }
@@ -74,19 +72,14 @@ impl Mesh {
             shader.set_int(&format!("material.{}", name), i as i32);
             unsafe { gl::BindTexture(gl::TEXTURE_2D, self.textures[i].id) }
         }
-        println!("INDICES {}", self.indices.len());
-        println!("VERTICES {}", self.vertices.len());
         unsafe {
             gl::BindVertexArray(self.vao);
-            println!("BOUND VAO");
             gl::DrawElements(
                 gl::TRIANGLES,
                 self.indices.len() as GLsizei,
                 gl::UNSIGNED_INT,
                 ToCVoid(0).into(),
             );
-            println!("DRAWN");
-            // Reset to defaults
             gl::BindVertexArray(0);
             gl::ActiveTexture(gl::TEXTURE0);
         }
