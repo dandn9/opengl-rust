@@ -1,4 +1,5 @@
 use crate::gl::types::*;
+use crate::mesh::Texture;
 use crate::{camera, gl, Camera};
 use std::ffi::c_void;
 
@@ -9,7 +10,7 @@ impl Into<*const c_void> for ToCVoid<usize> {
         self.0 as *const c_void
     }
 }
-impl Into<*const c_void> for ToCVoid<&Vec<f32>> {
+impl<T> Into<*const c_void> for ToCVoid<&Vec<T>> {
     fn into(self) -> *const c_void {
         self.0.as_ptr() as *const c_void
     }
@@ -19,7 +20,6 @@ impl Into<*const c_void> for ToCVoid<&[f32]> {
         self.0.as_ptr() as *const c_void
     }
 }
-
 // Does this behave weirdly because it gets deallocated since it gets consumed ????
 // impl Into<*const c_void> for ToCVoid<Vec<f32>> {
 //     fn into(self) -> *const c_void {
