@@ -116,9 +116,6 @@ impl Mesh {
                 offset_of!(Vertex, position) as *const c_void,
             );
 
-            // Is there a way of coupling the type with the struct?
-            let vertex_pos_offset = size_of::<glm::Vec3>();
-            let vertex_normal_offset = size_of::<glm::Vec3>();
             // Vertex normal
             gl::EnableVertexAttribArray(1);
             gl::VertexAttribPointer(

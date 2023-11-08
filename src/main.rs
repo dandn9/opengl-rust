@@ -22,8 +22,8 @@ use utils::{framebuffer_size_callback, process_input, process_mouse};
 use crate::shader::Shader;
 use crate::utils::{load_texture, ToCVoid};
 
-const SRC_WIDTH: u32 = 800;
-const SRC_HEIGHT: u32 = 600;
+const SRC_WIDTH: u32 = 1280;
+const SRC_HEIGHT: u32 = 720;
 
 fn main() {
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();

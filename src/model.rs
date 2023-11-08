@@ -4,14 +4,15 @@ use crate::utils::{load_texture, to_c_str};
 use russimp::material::{PropertyTypeInfo, TextureType};
 use russimp::node::Node;
 use russimp::scene::{PostProcess, PostProcessSteps, Scene};
-use russimp::sys::aiMaterial;
 use std::ops::Index;
+use std::path::Path;
 use std::rc::Rc;
+use std::time::SystemTime;
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub directory: &'static str,
-    textures_loaded: Vec<Texture>,
+    loaded_textures: Vec<Texture>,
 }
 
 impl Model {
@@ -19,9 +20,9 @@ impl Model {
         let mut model = Self {
             meshes: vec![],
             directory: "",
-            textures_loaded: vec![],
+            loaded_textures: vec![],
         };
-        model.load_model(path);
+        model.load_model_obj(path);
         model
     }
     pub fn draw(&self, shader: &Shader) {
@@ -29,7 +30,92 @@ impl Model {
             mesh.draw(shader);
         }
     }
-    fn load_model(&mut self, path: &'static str) {
+    fn load_model_obj(&mut self, path: &'static str) {
+        let last_sep = path.rfind("/").unwrap();
+        self.directory = &path[0..last_sep];
+
+        // Using tobj's default options the vertex normals will be not the same number of vertex positions :\
+        let (models, materials) =
+            tobj::load_obj(&Path::new(path), &tobj::GPU_LOAD_OPTIONS).unwrap();
+        let materials = materials.unwrap();
+
+        for model in models.iter() {
+            let mesh = &model.mesh;
+            assert_eq!(mesh.positions.len() % 3, 0);
+            let vertices_count = mesh.positions.len() / 3;
+            println!("MESH {}", vertices_count);
+            let mut vertices: Vec<Vertex> = Vec::with_capacity(vertices_count);
+            let mut indices: Vec<u32> = mesh.indices.clone();
+            let mut textures: Vec<Texture> = vec![];
+
+            let (p, n, t) = (&mesh.positions, &mesh.normals, &mesh.texcoords);
+            // Process vertices
+            for i in 0..vertices_count {
+                vertices.push(Vertex {
+                    position: glm::vec3(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]),
+                    normal: glm::vec3(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]),
+                    tex_coords: glm::vec2(t[i * 2], t[i * 2 + 1]),
+                })
+            }
+
+            // Process textures
+            if let Some(material_id) = mesh.material_id {
+                let material = &materials[material_id];
+                textures = self.load_material_textures_tobj(&material);
+            }
+
+            let mesh = Mesh::new(vertices, indices, textures);
+            self.meshes.push(mesh);
+            // for vertex in mesh.positions
+        }
+    }
+    fn load_material_textures_tobj(&mut self, material: &tobj::Material) -> Vec<Texture> {
+        let mut textures: Vec<Texture> = vec![];
+        // Diffuse texture
+        if let Some(ref diffuse_texture) = material.diffuse_texture {
+            let path = format!("{}/{}", self.directory, diffuse_texture);
+            let mut skip = false;
+            for loaded_texture in self.loaded_textures.iter() {
+                if &loaded_texture.path == &path {
+                    textures.push(loaded_texture.clone());
+                    skip = true;
+                }
+            }
+
+            if !skip {
+                let texture = Texture {
+                    id: load_texture(&path),
+                    path,
+                    tex_type: "texture_diffuse",
+                };
+                self.loaded_textures.push(texture.clone());
+                textures.push(texture);
+            }
+        }
+        if let Some(ref specular_texture) = material.specular_texture {
+            let path = format!("{}/{}", self.directory, specular_texture);
+            let mut skip = false;
+            for loaded_texture in self.loaded_textures.iter() {
+                if &loaded_texture.path == &path {
+                    textures.push(loaded_texture.clone());
+                    skip = true;
+                }
+            }
+
+            if !skip {
+                let texture = Texture {
+                    id: load_texture(&path),
+                    path,
+                    tex_type: "texture_specular",
+                };
+                self.loaded_textures.push(texture.clone());
+                textures.push(texture);
+            }
+        }
+        textures
+    }
+
+    fn load_model_russimp(&mut self, path: &'static str) {
         println!("LOADING MODEL");
         match Scene::from_file(path, vec![PostProcess::Triangulate, PostProcess::FlipUVs]) {
             Err(error) => {
@@ -46,12 +132,14 @@ impl Model {
         }
     }
     fn process_node(&mut self, node: Rc<Node>, scene: &Scene) {
-        println!("PROCESSING NODE {}", node.name);
+        let start = SystemTime::now();
+        println!("PROCESSING NODE {} {:?}", node.name, start);
         for mesh in node.meshes.iter() {
             let m = &scene.meshes[*mesh as usize];
             let mesh = self.process_mesh(m, scene);
             self.meshes.push(mesh);
         }
+        println!("FINISHED - {:?}", start.elapsed());
 
         let children = node.children.borrow();
         for child in children.iter() {
@@ -59,7 +147,8 @@ impl Model {
         }
     }
     fn process_mesh(&mut self, mesh: &russimp::mesh::Mesh, scene: &Scene) -> Mesh {
-        println!("PROCESSING MESH");
+        let start = SystemTime::now();
+        println!("PROCESSING MESH {:?}", start);
         let mut vertices: Vec<Vertex> = vec![];
         let mut indices: Vec<u32> = vec![];
         let mut textures: Vec<Texture> = vec![];
@@ -85,6 +174,7 @@ impl Model {
             }
         }
 
+        println!("PROCESSING MESH {:?}", start.elapsed());
         if mesh.material_index >= 0 {
             let material = &scene.materials[mesh.material_index as usize];
 
@@ -95,6 +185,7 @@ impl Model {
             textures.append(&mut diffuse_maps);
             textures.append(&mut specular_maps);
         }
+        println!("FINISHED PROCESSING MESH {:?}", start.elapsed());
         return Mesh::new(vertices, indices, textures);
     }
 
@@ -112,8 +203,8 @@ impl Model {
                         let file = format!("{}/{}", self.directory, str);
                         let mut skip = false;
 
-                        println!("LOADED {:?}", self.textures_loaded);
-                        for loaded_textures in self.textures_loaded.iter() {
+                        println!("LOADED {:?}", self.loaded_textures);
+                        for loaded_textures in self.loaded_textures.iter() {
                             if file == loaded_textures.path {
                                 textures.push(loaded_textures.clone());
                                 skip = true;
@@ -129,7 +220,7 @@ impl Model {
                                 tex_type: tex_name,
                                 path: file.clone(),
                             };
-                            self.textures_loaded.push(texture.clone());
+                            self.loaded_textures.push(texture.clone());
                             textures.push(texture.clone());
                         }
                     }
