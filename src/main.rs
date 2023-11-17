@@ -55,6 +55,10 @@ fn main() {
     window.make_current();
 
     let shader = Shader::new("src/shaders/vertex.glsl", "src/shaders/fragment.glsl");
+    let single_shader = Shader::new(
+        "src/shaders/vertex.glsl",
+        "src/shaders/fragment-single.glsl",
+    );
 
     #[rustfmt::skip]
         let plane_vertices: &[f32] = &[
@@ -120,7 +124,7 @@ fn main() {
     unsafe {
         // Configure global opengl state
         gl::Enable(gl::DEPTH_TEST);
-        gl::DepthFunc(gl::LESS);
+        gl::Enable(gl::STENCIL_TEST);
 
         gl::GenVertexArrays(1, &mut cubeVAO);
         gl::GenBuffers(1, &mut cubeVBO);
@@ -227,10 +231,14 @@ fn main() {
         }
 
         unsafe {
-            gl::ClearColor(0.2, 0.3, 0.3, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::STENCIL_TEST);
+            gl::DepthFunc(gl::DEPTH_TEST);
+            gl::StencilFunc(gl::NOTEQUAL, 1, 0xFF);
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::REPLACE);
+            gl::ClearColor(0.1, 0.1, 0.1, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
         }
-        shader.use_shader();
         // Model/View/projection
         let mut model = glm::Mat4::identity();
         let view = camera.get_view_matrix();
@@ -242,8 +250,22 @@ fn main() {
         );
         shader.set_mat4("view", &view);
         shader.set_mat4("projection", &projection);
+        single_shader.set_mat4("view", &view);
+        single_shader.set_mat4("projection", &projection);
 
         unsafe {
+            shader.use_shader();
+
+            gl::StencilMask(0x00);
+            // Floor
+            gl::BindVertexArray(planeVAO);
+            gl::BindTexture(gl::TEXTURE_2D, floor_texture);
+            shader.set_mat4("model", &glm::Mat4::identity());
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            gl::BindVertexArray(0);
+
+            gl::StencilFunc(gl::ALWAYS, 1, 0xFF);
+            gl::StencilMask(0xFF);
             // Cubes
             gl::BindVertexArray(cubeVAO);
             gl::ActiveTexture(gl::TEXTURE0);
@@ -255,12 +277,33 @@ fn main() {
             model = glm::translate(&model, &glm::vec3(2., 0., 0.));
             shader.set_mat4("model", &model);
             gl::DrawArrays(gl::TRIANGLES, 0, 36);
-            // Floor
-            gl::BindVertexArray(planeVAO);
-            gl::BindTexture(gl::TEXTURE_2D, floor_texture);
-            shader.set_mat4("model", &glm::Mat4::identity());
-            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+
+            // Upscaled cubes
+            gl::StencilFunc(gl::NOTEQUAL, 1, 0xFF);
+            gl::StencilMask(0x00);
+            gl::Disable(gl::DEPTH_TEST);
+            single_shader.use_shader();
+
+            gl::BindVertexArray(cubeVAO);
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindTexture(gl::TEXTURE_2D, cube_texture);
+            model = glm::Mat4::identity();
+            model = glm::translate(&model, &glm::vec3(-1., 0., -1.));
+            model = glm::scale(&model, &glm::vec3(1.1, 1.1, 1.1));
+            single_shader.set_mat4("model", &model);
+            gl::DrawArrays(gl::TRIANGLES, 0, 36);
+            model = glm::identity();
+            model = glm::translate(&model, &glm::vec3(2., 0., 0.));
+            model = glm::scale(&model, &glm::vec3(1.2, 1.2, 1.2));
+            single_shader.set_mat4("model", &model);
+
+            gl::DrawArrays(gl::TRIANGLES, 0, 36);
             gl::BindVertexArray(0);
+            gl::StencilMask(0xFF);
+            gl::StencilFunc(gl::ALWAYS, 0, 0xFF);
+            gl::Enable(gl::DEPTH_TEST);
+
+            // make sure we dont update the stencil buffer while drawing the floor
         }
         window.swap_buffers();
         glfw.poll_events();
